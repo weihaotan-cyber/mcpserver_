@@ -50,6 +50,10 @@ node_modules/
 *.swp
 *.swo
 
+# Environment variables and secrets
+.env
+.env.local
+
 # Ignore server dependencies
 server_files/
 
