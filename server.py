@@ -5,7 +5,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 import os
-from typing import Optional
+from typing import Optional, Literal
 from dotenv import load_dotenv
 from authlib.jose import jwt
 from authlib.jose.errors import JoseError
@@ -44,7 +44,13 @@ mcp = FastMCP(
     name="get_conversations",
     description="Get a list of all conversations (overview/summary). Use this to see all available conversations. Requires an access token - use the authorize_user tool first to obtain the token, then pass the 'token' field from its response to this tool. For details of a specific conversation, use get_conversation_details instead.", 
 )
-async def get_conversations(token:str, page: int = 1, limit: int = 10, sort: str = "created_by", order: str = "DESC") -> dict:
+async def get_conversations(
+    token: str, 
+    page: int = 1, 
+    limit: int = 10, 
+    sort: Literal["created_by", "updated_by", "title"] = "", 
+    order: Literal["ASC", "DESC"] = "DESC"
+) -> dict:
     """Internal function description (ignored if description is provided above)."""
 
     async with httpx.AsyncClient() as client:
@@ -77,7 +83,14 @@ async def get_conversations(token:str, page: int = 1, limit: int = 10, sort: str
     name="get_conversation_details",
     description="Get detailed information about a SPECIFIC conversation by its ID. Use this when you need the full content/messages of a particular conversation. You must provide the ID. Requires an access token - use the authorize_user tool first to obtain the token, then pass the 'token' field from its response to this tool. To get a list of all conversations first, use get_conversations.", 
 )
-async def get_conversation_details(token: str, id: str, page: int = 1, limit: int = 10, sort: str = "created_by", order: str = "DESC") -> dict:
+async def get_conversation_details(
+    token: str, 
+    id: str, 
+    page: int = 1, 
+    limit: int = 10, 
+    sort: Literal["created_by", "updated_by", "title"] = "", 
+    order: Literal["ASC", "DESC"] = "DESC"
+) -> dict:
     """Internal function description (ignored if description is provided above)."""
 
     async with httpx.AsyncClient() as client:
@@ -127,9 +140,14 @@ async def get_user_info() -> dict:
 
 @mcp.tool(
     name="authorize_user",
-    description="Authorize and get information about the authenticated user.", 
+    description="Authorize and get information about the authenticated user. Returns a token object containing an access token that must be passed to other tools.", 
 )
-async def authorize_user(user_id: str,channel: str,entry_point: str,language: str) -> dict:
+async def authorize_user(
+    user_id: str,
+    channel: str,
+    entry_point: str,
+    language: str
+) -> dict:
     """Returns information about the authenticated user."""
     async with httpx.AsyncClient() as client:
         try:
@@ -150,10 +168,17 @@ async def authorize_user(user_id: str,channel: str,entry_point: str,language: st
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
-            return {
+            error_detail = {
                 "error": str(e),
                 "status_code": getattr(e.response, 'status_code', None)
             }
+            # Try to extract error message from response body
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_detail["response_body"] = e.response.json()
+                except:
+                    error_detail["response_text"] = e.response.text
+            return error_detail
 
 
 # ---- integrate third-party MCP servers via a proxy config
@@ -178,4 +203,4 @@ third_party = FastMCP.as_proxy({
 # mcp.mount(third_party)
 
 if __name__ == "__main__":
-    mcp.run(transport="http", port=8000)
+    mcp.run(transport="sse", port=8000)
